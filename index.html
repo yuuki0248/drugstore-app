@@ -210,17 +210,51 @@ async function callAPI(userMsg) {
     })
   });
 
+  const data = await response.json();
+
+  // ── ① HTTPエラー（4xx・5xxなど）のチェック
   if (!response.ok) {
-    const errorDetail = await response.json();
-    console.error("詳細エラー:", errorDetail);
-    throw new Error(`${response.status}: ${errorDetail.error?.message || "通信エラー"}`);
+    console.error("APIエラー詳細:", data);
+    throw new Error(`通信エラー (${response.status}): ${data.error?.message || "不明なエラー"}`);
   }
 
-  const data = await response.json();
-  const reply = data.candidates[0].content.parts[0].text;
-  
+  // ── ② candidatesが存在しない・空のチェック（安全フィルターや上限超過で起こる）
+  if (!data.candidates || data.candidates.length === 0) {
+    console.error("candidatesが空:", data);
+    // promptFeedbackにブロック理由が入っている場合がある
+    const reason = data.promptFeedback?.blockReason || "不明";
+    throw new Error(`AIから回答が得られませんでした（理由: ${reason}）。会話をリセットして最初から試してください。`);
+  }
+
+  // ── ③ 回答テキストの取り出し（安全に）
+  const candidate = data.candidates[0];
+  // finishReasonがSTOPでない場合（MAX_TOKENS・SAFETYなど）も検知
+  if (candidate.finishReason && candidate.finishReason !== "STOP") {
+    console.warn("finishReason:", candidate.finishReason);
+    if (candidate.finishReason === "MAX_TOKENS") {
+      // 会話履歴が長くなりすぎたらリセット
+      history = [];
+      throw new Error("会話が長くなりすぎました。「新しい相談」ボタンを押してリセットしてください。");
+    }
+    if (candidate.finishReason === "SAFETY") {
+      throw new Error("安全フィルターにより回答できませんでした。別の表現でお試しください。");
+    }
+  }
+
+  const reply = candidate?.content?.parts?.[0]?.text;
+  if (!reply) {
+    console.error("テキスト取得失敗:", candidate);
+    throw new Error("AIの回答テキストが取得できませんでした。もう一度お試しください。");
+  }
+
   history.push({ role: 'user', content: userMsg });
   history.push({ role: 'assistant', content: reply });
+
+  // ── ④ 会話履歴が長くなりすぎたら古いものを自動削除（直近10往復だけ保持）
+  if (history.length > 20) {
+    history = history.slice(history.length - 20);
+  }
+
   return reply;
 }
 
