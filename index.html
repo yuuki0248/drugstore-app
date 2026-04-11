@@ -167,11 +167,8 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 <script>
 /* ═══════════════════════════ CONFIG (2026年最新版) ═══════════════════════════ */
 const API_URL = `/api/gemini`;
-const SYS_INSTRUCTION = `あなたは日本のドラッグストアの「おくすり相談Proアシスタント」です。
-【ルール】
-1. 小児(15歳未満)、妊婦、授乳中、持病（高血圧・緑内障等）への禁忌を厳格にチェック。
-2. 情報不足時は提案前に必ず質問して補う。
-3. 提案時は第2類・第3類のみ。必ず「SUGGESTIONS_JSON」形式で出力。`;
+const SYS_INSTRUCTION = `日本のドラッグストアの登録販売者向け医薬品提案ツール。
+ルール：第2類・第3類のみ提案。妊婦・小児・持病持ちの禁忌を必ずチェック。緊急症状は受診案内。提案時はSUGGESTIONS_JSON形式で出力。日本語で回答。`;
 
 let history = [];
 let busy = false;
@@ -184,28 +181,14 @@ async function callAPI(userMsg) {
     history = history.slice(history.length - 12);
   }
 
-  // contentsを組み立てる
+  // contentsを組み立てる（履歴をそのまま使う）
   const contents = [];
-
-  if (history.length === 0) {
-    // 会話の最初だけシステム指示を入れる
+  history.forEach(h => {
     contents.push({
-      role: 'user',
-      parts: [{ text: `【指示】${SYS_INSTRUCTION}\n\n了解したら「開始します」と一言だけ答えてください。` }]
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.content }]
     });
-    contents.push({
-      role: 'model',
-      parts: [{ text: "開始します。" }]
-    });
-  } else {
-    // 2回目以降は履歴をそのまま使う（システム指示は追加しない）
-    history.forEach(h => {
-      contents.push({
-        role: h.role === 'user' ? 'user' : 'model',
-        parts: [{ text: h.content }]
-      });
-    });
-  }
+  });
 
   // 今回のメッセージを追加
   contents.push({ role: 'user', parts: [{ text: userMsg }] });
@@ -214,6 +197,7 @@ async function callAPI(userMsg) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYS_INSTRUCTION }] },
       contents: contents,
       generationConfig: { maxOutputTokens: 1000, temperature: 0.1 }
     })
