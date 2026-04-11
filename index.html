@@ -178,27 +178,36 @@ let busy = false;
 
 /* ═══════════════════════════ API CALL ═══════════════════════════ */
 async function callAPI(userMsg) {
+
+  // 履歴が長くなりすぎたら古いものを削除（直近6往復=12件だけ保持）
+  if (history.length > 12) {
+    history = history.slice(history.length - 12);
+  }
+
+  // contentsを組み立てる
   const contents = [];
-  
-  // エラー回避のため、システム指示を会話の冒頭に潜り込ませます。
-  contents.push({
-    role: 'user',
-    parts: [{ text: `【指示】${SYS_INSTRUCTION}\n\n了解したら「開始します」と答え、相談を受けてください。` }]
-  });
-  contents.push({
-    role: 'model',
-    parts: [{ text: "開始します。登録販売者のサポートとして、禁忌や属性を考慮し、適切なお薬の提案や質問を行います。" }]
-  });
 
-  // 履歴を追加
-  history.forEach(h => {
+  if (history.length === 0) {
+    // 会話の最初だけシステム指示を入れる
     contents.push({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.content }]
+      role: 'user',
+      parts: [{ text: `【指示】${SYS_INSTRUCTION}\n\n了解したら「開始します」と一言だけ答えてください。` }]
     });
-  });
+    contents.push({
+      role: 'model',
+      parts: [{ text: "開始します。" }]
+    });
+  } else {
+    // 2回目以降は履歴をそのまま使う（システム指示は追加しない）
+    history.forEach(h => {
+      contents.push({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }]
+      });
+    });
+  }
 
-  // 今回の質問を追加
+  // 今回のメッセージを追加
   contents.push({ role: 'user', parts: [{ text: userMsg }] });
 
   const response = await fetch(API_URL, {
@@ -210,50 +219,45 @@ async function callAPI(userMsg) {
     })
   });
 
+  // レスポンスのエラーチェック
   const data = await response.json();
 
-  // ── ① HTTPエラー（4xx・5xxなど）のチェック
   if (!response.ok) {
     console.error("APIエラー詳細:", data);
     throw new Error(`通信エラー (${response.status}): ${data.error?.message || "不明なエラー"}`);
   }
 
-  // ── ② candidatesが存在しない・空のチェック（安全フィルターや上限超過で起こる）
+  // candidatesが空のチェック（安全フィルターやトークン上限で起こる）
   if (!data.candidates || data.candidates.length === 0) {
     console.error("candidatesが空:", data);
-    // promptFeedbackにブロック理由が入っている場合がある
     const reason = data.promptFeedback?.blockReason || "不明";
-    throw new Error(`AIから回答が得られませんでした（理由: ${reason}）。会話をリセットして最初から試してください。`);
+    if (reason !== "不明") {
+      throw new Error("AIの安全フィルターにより回答できませんでした。別の表現でお試しください。");
+    }
+    throw new Error("AIから回答が得られませんでした。「新しい相談」ボタンを押してリセットしてください。");
   }
 
-  // ── ③ 回答テキストの取り出し（安全に）
   const candidate = data.candidates[0];
-  // finishReasonがSTOPでない場合（MAX_TOKENS・SAFETYなど）も検知
-  if (candidate.finishReason && candidate.finishReason !== "STOP") {
-    console.warn("finishReason:", candidate.finishReason);
-    if (candidate.finishReason === "MAX_TOKENS") {
-      // 会話履歴が長くなりすぎたらリセット
-      history = [];
-      throw new Error("会話が長くなりすぎました。「新しい相談」ボタンを押してリセットしてください。");
-    }
-    if (candidate.finishReason === "SAFETY") {
-      throw new Error("安全フィルターにより回答できませんでした。別の表現でお試しください。");
-    }
+
+  // finishReasonのチェック
+  if (candidate.finishReason === "MAX_TOKENS") {
+    history = [];
+    throw new Error("会話が長くなりすぎました。「新しい相談」ボタンを押してリセットしてください。");
+  }
+  if (candidate.finishReason === "SAFETY") {
+    throw new Error("安全フィルターにより回答できませんでした。別の表現でお試しください。");
   }
 
+  // テキストの取り出し
   const reply = candidate?.content?.parts?.[0]?.text;
   if (!reply) {
     console.error("テキスト取得失敗:", candidate);
-    throw new Error("AIの回答テキストが取得できませんでした。もう一度お試しください。");
+    throw new Error("AIの回答が取得できませんでした。もう一度お試しください。");
   }
 
+  // 履歴に追加
   history.push({ role: 'user', content: userMsg });
   history.push({ role: 'assistant', content: reply });
-
-  // ── ④ 会話履歴が長くなりすぎたら古いものを自動削除（直近10往復だけ保持）
-  if (history.length > 20) {
-    history = history.slice(history.length - 20);
-  }
 
   return reply;
 }
