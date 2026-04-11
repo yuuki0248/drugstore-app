@@ -167,8 +167,15 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 <script>
 /* ═══════════════════════════ CONFIG (2026年最新版) ═══════════════════════════ */
 const API_URL = `/api/gemini`;
-const SYS_INSTRUCTION = `日本のドラッグストアの登録販売者向け医薬品提案ツール。
-ルール：第2類・第3類のみ提案。妊婦・小児・持病持ちの禁忌を必ずチェック。緊急症状は受診案内。提案時はSUGGESTIONS_JSON形式で出力。日本語で回答。`;
+const SYS_INSTRUCTION = `あなたは日本のドラッグストアに設置された登録販売者向けの医薬品提案アシスタントです。操作者は登録販売者です。
+
+ルール：
+1. 提案は第2類・第3類医薬品のみ。第1類・処方薬は提案しない。
+2. 妊娠中・授乳中・15歳未満・75歳以上・持病がある方の禁忌を必ずチェックし、薬剤師相談を案内。
+3. 胸痛・意識混濁・激しい頭痛・呼吸困難などの緊急症状は薬を提案せず受診を案内。
+4. 情報不足時は1〜2問だけ質問してから提案。
+5. 提案時は必ずSUGGESTIONS_JSON形式で出力。
+6. 日本語で回答。`;
 
 let history = [];
 let busy = false;
@@ -176,66 +183,41 @@ let busy = false;
 /* ═══════════════════════════ API CALL ═══════════════════════════ */
 async function callAPI(userMsg) {
 
-  // 履歴が長くなりすぎたら古いものを削除（直近6往復=12件だけ保持）
-  if (history.length > 12) {
-    history = history.slice(history.length - 12);
+  // 履歴が長くなりすぎたら古いものを削除（直近10往復=20件だけ保持）
+  if (history.length > 20) {
+    history = history.slice(history.length - 20);
   }
 
-  // contentsを組み立てる（履歴をそのまま使う）
-  const contents = [];
-  history.forEach(h => {
-    contents.push({
-      role: h.role === 'user' ? 'user' : 'model',
-      parts: [{ text: h.content }]
-    });
-  });
-
-  // 今回のメッセージを追加
-  contents.push({ role: 'user', parts: [{ text: userMsg }] });
+  // Claude用のメッセージ形式に変換
+  const messages = history.map(h => ({
+    role: h.role === 'assistant' ? 'assistant' : 'user',
+    content: h.content
+  }));
+  messages.push({ role: 'user', content: userMsg });
 
   const response = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYS_INSTRUCTION }] },
-      contents: contents,
-      generationConfig: { maxOutputTokens: 1000, temperature: 0.1 }
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: SYS_INSTRUCTION,
+      messages: messages
     })
   });
 
-  // レスポンスのエラーチェック
   const data = await response.json();
 
+  // エラーチェック
   if (!response.ok) {
-    console.error("APIエラー詳細:", data);
+    console.error("APIエラー:", data);
     throw new Error(`通信エラー (${response.status}): ${data.error?.message || "不明なエラー"}`);
   }
 
-  // candidatesが空のチェック（安全フィルターやトークン上限で起こる）
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error("candidatesが空:", data);
-    const reason = data.promptFeedback?.blockReason || "不明";
-    if (reason !== "不明") {
-      throw new Error("AIの安全フィルターにより回答できませんでした。別の表現でお試しください。");
-    }
-    throw new Error("AIから回答が得られませんでした。「新しい相談」ボタンを押してリセットしてください。");
-  }
-
-  const candidate = data.candidates[0];
-
-  // finishReasonのチェック
-  if (candidate.finishReason === "MAX_TOKENS") {
-    history = [];
-    throw new Error("会話が長くなりすぎました。「新しい相談」ボタンを押してリセットしてください。");
-  }
-  if (candidate.finishReason === "SAFETY") {
-    throw new Error("安全フィルターにより回答できませんでした。別の表現でお試しください。");
-  }
-
-  // テキストの取り出し
-  const reply = candidate?.content?.parts?.[0]?.text;
+  // テキストの取り出し（Claude形式）
+  const reply = data.content?.[0]?.text;
   if (!reply) {
-    console.error("テキスト取得失敗:", candidate);
+    console.error("テキスト取得失敗:", data);
     throw new Error("AIの回答が取得できませんでした。もう一度お試しください。");
   }
 
