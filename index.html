@@ -253,20 +253,48 @@ async function processMsg(text) {
 }
 
 function parseReply(raw) {
+  // まずSUGGESTIONS_JSON形式を試みる
   const marker = 'SUGGESTIONS_JSON';
   const endMarker = 'END_SUGGESTIONS';
   const idx = raw.indexOf(marker);
-  if (idx === -1) return { html: md(raw), suggestions: [] };
 
-  const before = raw.slice(0, idx).trim();
-  const rest = raw.slice(idx + marker.length);
-  const endIdx = rest.indexOf(endMarker);
-  const jsonStr = endIdx !== -1 ? rest.slice(0, endIdx).trim() : rest.trim();
-  const after = endIdx !== -1 ? rest.slice(endIdx + endMarker.length).trim() : '';
+  if (idx !== -1) {
+    const before = raw.slice(0, idx).trim();
+    const rest = raw.slice(idx + marker.length);
+    const endIdx = rest.indexOf(endMarker);
+    const jsonStr = endIdx !== -1 ? rest.slice(0, endIdx).trim() : rest.trim();
+    const after = endIdx !== -1 ? rest.slice(endIdx + endMarker.length).trim() : '';
+    let suggestions = [];
+    try { suggestions = JSON.parse(jsonStr); } catch(e) { console.error("JSON解析失敗", e); }
+    return { html: [before, after].filter(Boolean).map(md).join('<br>'), suggestions };
+  }
 
-  let suggestions = [];
-  try { suggestions = JSON.parse(jsonStr); } catch(e) { console.error("JSON解析失敗", e); }
-  return { html: [before, after].filter(Boolean).map(md).join('<br>'), suggestions };
+  // ```json ... ``` 形式を試みる
+  const jsonBlockMatch = raw.match(/```json\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    const before = raw.slice(0, raw.indexOf('```json')).trim();
+    const after = raw.slice(raw.indexOf('```json') + jsonBlockMatch[0].length).trim();
+    let suggestions = [];
+    try {
+      const parsed = JSON.parse(jsonBlockMatch[1].trim());
+      // {"suggestions": [...]} 形式の場合
+      if (parsed.suggestions) suggestions = parsed.suggestions;
+      // 直接配列の場合
+      else if (Array.isArray(parsed)) suggestions = parsed;
+
+      // フィールド名の正規化（nameまたはproduct_name等に対応）
+      suggestions = suggestions.map(s => ({
+        name: s.name || s.product_name || s.商品名 || '',
+        class: s.class || s.category || s.分類 || '第2類',
+        reason: s.reason || s.効果 || s.説明 || '',
+        caution: s.caution || s.precautions || s.注意 || s.precaution || ''
+      }));
+    } catch(e) { console.error("JSON解析失敗", e); }
+    return { html: [before, after].filter(Boolean).map(md).join('<br>'), suggestions };
+  }
+
+  // どちらでもない場合はそのままテキスト表示
+  return { html: md(raw), suggestions: [] };
 }
 
 function md(text) {
