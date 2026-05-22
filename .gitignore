@@ -1,0 +1,8 @@
+node_modules/
+*.log
+*.csv
+pmda_*.html
+debug_output.txt
+mcp_err.txt
+mcp_out.txt
+.claude/
