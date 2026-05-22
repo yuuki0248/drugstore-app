@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>おくすり相談 Pro｜登録販売者サポートツール</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Shippori+Mincho:wght@400;600;700&display=swap');
+
+:root {
+  --bg: #f7f9f8; --bg2: #eef3f0; --panel: #ffffff; --deep: #1b3d2f; --mid: #2e6b50; --light: #4e9e7a;
+  --pale: #d4eddf; --mist: #edf7f1; --accent: #d4782a; --accent2: #c9a62c; --red: #b83232; --red-bg: #fff0ef;
+  --text: #1a2e25; --text2: #3d5a4a; --text3: #7a9a88; --border: rgba(78,158,122,0.18);
+  --shadow: 0 2px 20px rgba(27,61,47,0.09); --shadow2: 0 6px 32px rgba(27,61,47,0.14);
+  --star-active: #e8b200; --mark-yellow: rgba(255, 225, 80, 0.55); --mark-blue: rgba(100, 170, 255, 0.45);
+  --mark-pink: rgba(255, 140, 160, 0.45); --mark-green: rgba(100, 210, 160, 0.45);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100dvh; }
+
+/* HEADER */
+.header { background: var(--deep); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 12px rgba(0,0,0,0.2); z-index: 50; }
+.header-left { display: flex; align-items: center; gap: 10px; }
+.header-logo { width: 34px; height: 34px; background: linear-gradient(135deg, var(--light), var(--mid)); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+.header-title { font-family: 'Shippori Mincho', serif; font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.03em; }
+.header-badge { font-size: 10px; background: var(--light); color: #fff; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+.hdr-btn { height: 32px; padding: 0 12px; border-radius: 99px; border: 1.5px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); font-size: 12px; cursor: pointer; }
+
+/* DISCLAIMER */
+.disclaimer { background: linear-gradient(to right, #fffbeb, #fff9e0); border-bottom: 1.5px solid rgba(201,166,44,0.35); padding: 7px 20px; font-size: 11px; color: #6b5010; line-height: 1.6; flex-shrink: 0; }
+
+/* MAIN LAYOUT */
+.main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* SIDEBAR */
+.sidebar { width: 240px; background: var(--panel); border-right: 1.5px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+@media (max-width: 640px) { .sidebar { display: none; } }
+.sidebar-head { padding: 14px 16px 10px; font-size: 11px; font-weight: 700; color: var(--text3); border-bottom: 1px solid var(--border); }
+.quick-items { flex: 1; overflow-y: auto; padding: 10px 10px; }
+.quick-group-label { font-size: 10.5px; color: var(--text3); font-weight: 600; padding: 8px 6px 4px; }
+.quick-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--text2); cursor: pointer; transition: background 0.15s; margin-bottom: 2px; }
+.quick-btn:hover { background: var(--mist); color: var(--mid); }
+.sidebar-divider { height: 1px; background: var(--border); margin: 6px 12px; }
+
+/* CHAT AREA */
+.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+.chat-scroll { flex: 1; overflow-y: auto; padding: 18px 16px 4px; display: flex; flex-direction: column; gap: 14px; }
+
+/* BUBBLES */
+.msg-row { display: flex; align-items: flex-end; gap: 8px; animation: slideUp 0.28s forwards; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.msg-row.user { flex-direction: row-reverse; }
+.av { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+.av.bot { background: var(--deep); }
+.av.user { background: var(--mid); }
+.bubble { max-width: 78%; padding: 11px 15px; font-size: 14px; line-height: 1.8; border-radius: 18px; position: relative; }
+.bubble.bot { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow); }
+.bubble.user { background: var(--mid); color: #fff; border-bottom-right-radius: 4px; }
+.bubble.redflag { background: var(--red-bg); border: 2px solid var(--red); color: var(--red); font-weight: 500; }
+
+/* TYPING */
+.typing { display: flex; gap: 5px; align-items: center; padding: 4px 2px; }
+.dot { width: 7px; height: 7px; background: var(--light); border-radius: 50%; animation: blink 1.1s infinite; }
+.dot:nth-child(2) { animation-delay: 0.18s; }
+.dot:nth-child(3) { animation-delay: 0.36s; }
+@keyframes blink { 0%,80%,100%{ transform: translateY(0); opacity:0.5; } 40%{ transform: translateY(-5px); opacity:1; } }
+
+/* SUGGESTION CARDS */
+.suggestions-wrap { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.sug-card { background: var(--mist); border: 1.5px solid rgba(78,158,122,0.25); border-radius: 12px; padding: 13px 14px; position: relative; }
+.card-toolbar { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; }
+.tool-btn { width: 26px; height: 26px; border-radius: 6px; border: none; background: rgba(255,255,255,0.7); cursor: pointer; color: #aaa; display: flex; align-items: center; justify-content: center; }
+.tool-btn.star-active { color: var(--star-active); background: #fff9e0; }
+.marker-popup { display: none; position: absolute; top: 30px; right: 0; background: #fff; border: 1.5px solid var(--border); border-radius: 10px; padding: 6px; box-shadow: var(--shadow2); z-index: 100; gap: 5px; }
+.marker-popup.open { display: flex; }
+.mkr-dot { width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer; }
+.mkr-dot.yellow { background: #ffe050; } .mkr-dot.blue { background: #5aa0ff; } .mkr-dot.pink { background: #ff7a94; } .mkr-dot.green { background: #50d09a; }
+.mkr-dot.clear { background: #ddd; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+
+/* Marked states */
+.sug-card.mark-yellow { background: var(--mark-yellow); }
+.sug-card.mark-blue { background: var(--mark-blue); }
+.sug-card.mark-pink { background: var(--mark-pink); }
+.sug-card.mark-green { background: var(--mark-green); }
+.star-badge { position: absolute; top: -6px; left: -6px; width: 22px; height: 22px; background: var(--star-active); border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 11px; }
+.sug-card.starred .star-badge { display: flex; }
+
+.prod-name { font-weight: 700; font-size: 15px; color: var(--deep); padding-right: 70px; }
+.prod-class { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin: 4px 0 7px; }
+.cls-2 { background: var(--mid); color: #fff; }
+.cls-3 { background: var(--light); color: #fff; }
+.prod-reason { font-size: 13px; color: var(--text2); line-height: 1.7; }
+.prod-caution { margin-top: 6px; padding: 6px 10px; background: rgba(212,120,42,0.1); border-left: 3px solid var(--accent); font-size: 12px; color: var(--accent); }
+.consult-note { margin-top: 10px; padding: 9px 13px; background: #f0f8f4; border-left: 3px solid var(--light); font-size: 12.5px; color: var(--text2); }
+
+/* INPUT AREA */
+.input-zone { padding: 10px 16px 14px; background: var(--bg); border-top: 1.5px solid var(--border); flex-shrink: 0; }
+.input-inner { display: flex; gap: 8px; background: var(--panel); border: 2px solid var(--light); border-radius: 999px; padding: 6px 6px 6px 16px; align-items: flex-end; }
+.input-inner textarea { flex: 1; border: none; outline: none; resize: none; font-size: 14px; background: transparent; min-height: 34px; max-height: 110px; padding-top: 5px; }
+.send-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--mid); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.send-btn svg { width: 17px; height: 17px; fill: #fff; }
+.input-hint { text-align: center; font-size: 10.5px; color: var(--text3); margin-top: 5px; }
+
+/* LEGEND */
+.sidebar-legend { padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg2); }
+.legend-title { font-size: 10px; font-weight: 700; color: var(--text3); margin-bottom: 8px; }
+.legend-row { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text2); margin-bottom: 5px; }
+.legend-dot { width: 14px; height: 14px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">💊</div>
+    <div class="header-title">おくすり相談 Pro</div>
+    <div class="header-badge">登録販売者サポート</div>
+  </div>
+  <div class="header-right">
+    <button class="hdr-btn" onclick="resetChat()">🔄 新しい相談</button>
+  </div>
+</div>
+
+<div class="disclaimer">
+  ⚠️ <strong>免責事項：</strong>このツールは情報提供目的です。最終判断は必ず<strong>登録販売者または薬剤師</strong>が行ってください。
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-head">よくある症状</div>
+    <div class="quick-items">
+      <div class="quick-group-label">痛み・発熱</div>
+      <button class="quick-btn" onclick="quickSend('頭痛があります')">🤕 頭痛</button>
+      <button class="quick-btn" onclick="quickSend('喉が痛いです')">😣 喉の痛み</button>
+      <div class="sidebar-divider"></div>
+      <div class="quick-group-label">消化器系</div>
+      <button class="quick-btn" onclick="quickSend('胃がムカムカします')">🤢 胃もたれ</button>
+      <button class="quick-btn" onclick="quickSend('下痢が続いています')">🚽 下痢</button>
+      <div class="sidebar-divider"></div>
+      <div class="quick-group-label">風邪・鼻・目</div>
+      <button class="quick-btn" onclick="quickSend('鼻水と鼻づまりがひどいです')">🤧 鼻炎</button>
+      <button class="quick-btn" onclick="quickSend('咳が出て止まりません')">😤 咳</button>
+    </div>
+
+    <div class="sidebar-legend">
+      <div class="legend-title">凡例</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#ffe050;"></div>おすすめ</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#ff7a94;"></div>要注意</div>
+      <div class="legend-row">⭐ スター：推奨品</div>
+    </div>
+  </div>
+
+  <div class="chat-area">
+    <div class="chat-scroll" id="chatScroll"></div>
+    <div class="input-zone">
+      <div class="input-inner">
+        <textarea id="msgInput" placeholder="症状・年齢・持病などを入力…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" onclick="sendMsg()"><svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg></button>
+      </div>
+      <div class="input-hint">Enterで送信 ／ Shift+Enterで改行</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════ CONFIG (2026年最新版) ═══════════════════════════ */
+const API_URL = `/api/gemini`;
+const SYS_INSTRUCTION = `あなたは日本のドラッグストアに設置された登録販売者向けの医薬品提案アシスタントです。操作者は登録販売者です。
+
+ルール：
+1. 提案は第2類・第3類医薬品のみ。第1類・処方薬は提案しない。
+2. 妊娠中・授乳中・15歳未満・75歳以上・持病がある方の禁忌を必ずチェックし、薬剤師相談を案内。
+3. 胸痛・意識混濁・激しい頭痛・呼吸困難などの緊急症状は薬を提案せず受診を案内。
+4. 情報不足時は1〜2問だけ質問してから提案。
+5. 提案時は必ずSUGGESTIONS_JSON形式で出力。
+6. 日本語で回答。`;
+
+let history = [];
+let busy = false;
+
+/* ═══════════════════════════ API CALL ═══════════════════════════ */
+async function callAPI(userMsg) {
+
+  // 履歴が長くなりすぎたら古いものを削除（直近10往復=20件だけ保持）
+  if (history.length > 20) {
+    history = history.slice(history.length - 20);
+  }
+
+  // Claude用のメッセージ形式に変換
+  const messages = history.map(h => ({
+    role: h.role === 'assistant' ? 'assistant' : 'user',
+    content: h.content
+  }));
+  messages.push({ role: 'user', content: userMsg });
+
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: SYS_INSTRUCTION,
+      messages: messages
+    })
+  });
+
+  const data = await response.json();
+
+  // エラーチェック
+  if (!response.ok) {
+    console.error("APIエラー:", data);
+    throw new Error(`通信エラー (${response.status}): ${data.error?.message || "不明なエラー"}`);
+  }
+
+  // テキストの取り出し（Claude形式）
+  const reply = data.content?.[0]?.text;
+  if (!reply) {
+    console.error("テキスト取得失敗:", data);
+    throw new Error("AIの回答が取得できませんでした。もう一度お試しください。");
+  }
+
+  // 履歴に追加
+  history.push({ role: 'user', content: userMsg });
+  history.push({ role: 'assistant', content: reply });
+
+  return reply;
+}
+
+/* ═══════════════════════════ UI FUNCTIONS ═══════════════════════════ */
+function initChat() {
+  history = [];
+  document.getElementById('chatScroll').innerHTML = '';
+  addBotMsg("こんにちは！お客様の<strong>症状、年齢、持病、妊娠・授乳の有無、服用中の薬</strong>を教えてください。🌿");
+}
+
+async function processMsg(text) {
+  if (busy) return;
+  busy = true;
+  addUserMsg(text);
+  showTyping();
+  try {
+    const raw = await callAPI(text);
+    hideTyping();
+    const { html, suggestions } = parseReply(raw);
+    addBotMsg(html, suggestions, isRedFlag(raw));
+  } catch(err) {
+    hideTyping();
+    addBotMsg(`⚠️ エラー: ${err.message}`);
+  }
+  busy = false;
+}
+
+function parseReply(raw) {
+  // まずSUGGESTIONS_JSON形式を試みる
+  const marker = 'SUGGESTIONS_JSON';
+  const endMarker = 'END_SUGGESTIONS';
+  const idx = raw.indexOf(marker);
+
+  if (idx !== -1) {
+    const before = raw.slice(0, idx).trim();
+    const rest = raw.slice(idx + marker.length);
+    const endIdx = rest.indexOf(endMarker);
+    const jsonStr = endIdx !== -1 ? rest.slice(0, endIdx).trim() : rest.trim();
+    const after = endIdx !== -1 ? rest.slice(endIdx + endMarker.length).trim() : '';
+    let suggestions = [];
+    try { suggestions = JSON.parse(jsonStr); } catch(e) { console.error("JSON解析失敗", e); }
+    return { html: [before, after].filter(Boolean).map(md).join('<br>'), suggestions };
+  }
+
+  // ```json ... ``` 形式を試みる
+  const jsonBlockMatch = raw.match(/```json\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    const before = raw.slice(0, raw.indexOf('```json')).trim();
+    const after = raw.slice(raw.indexOf('```json') + jsonBlockMatch[0].length).trim();
+    let suggestions = [];
+    try {
+      const parsed = JSON.parse(jsonBlockMatch[1].trim());
+      // {"suggestions": [...]} 形式の場合
+      if (parsed.suggestions) suggestions = parsed.suggestions;
+      // 直接配列の場合
+      else if (Array.isArray(parsed)) suggestions = parsed;
+
+      // フィールド名の正規化（nameまたはproduct_name等に対応）
+      suggestions = suggestions.map(s => ({
+        name: s.name || s.product_name || s.商品名 || '',
+        class: s.class || s.category || s.分類 || '第2類',
+        reason: s.reason || s.効果 || s.説明 || '',
+        caution: s.caution || s.precautions || s.注意 || s.precaution || ''
+      }));
+    } catch(e) { console.error("JSON解析失敗", e); }
+    return { html: [before, after].filter(Boolean).map(md).join('<br>'), suggestions };
+  }
+
+  // どちらでもない場合はそのままテキスト表示
+  return { html: md(raw), suggestions: [] };
+}
+
+function md(text) {
+  return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n\n/g, '<br>').replace(/\n/g, '<br>');
+}
+
+function isRedFlag(text) {
+  return ['救急','119番','病院','緊急','受診'].some(k => text.includes(k));
+}
+
+function addBotMsg(html, suggestions = [], isFlag = false) {
+  const scroll = document.getElementById('chatScroll');
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  const bub = document.createElement('div');
+  bub.className = isFlag ? 'bubble bot redflag' : 'bubble bot';
+  bub.innerHTML = `<div>${html}</div>`;
+  if (suggestions.length > 0) {
+    const wrap = document.createElement('div');
+    wrap.className = 'suggestions-wrap';
+    suggestions.forEach((s, i) => wrap.appendChild(buildSugCard(s, i)));
+    bub.appendChild(wrap);
+    bub.insertAdjacentHTML('beforeend', `<div class="consult-note">💬 最終判断は必ず店舗の専門家が行ってください。</div>`);
+  }
+  row.innerHTML = `<div class="av bot">💊</div>`;
+  row.appendChild(bub);
+  scroll.appendChild(row);
+  scrollDown();
+}
+
+function buildSugCard(s, idx) {
+  const card = document.createElement('div');
+  card.className = 'sug-card';
+  card.innerHTML = `<div class="star-badge">⭐</div>
+    <div class="card-toolbar">
+      <button class="tool-btn" onclick="toggleStar(this.parentElement.parentElement, this)">☆</button>
+      <button class="tool-btn" onclick="toggleMarker(this, event)">🖊</button>
+      <div class="marker-popup">
+        <button class="mkr-dot yellow" onclick="applyMkr(this.parentElement.parentElement.parentElement, 'yellow')"></button>
+        <button class="mkr-dot blue" onclick="applyMkr(this.parentElement.parentElement.parentElement, 'blue')"></button>
+        <button class="mkr-dot pink" onclick="applyMkr(this.parentElement.parentElement.parentElement, 'pink')"></button>
+        <button class="mkr-dot clear" onclick="applyMkr(this.parentElement.parentElement.parentElement, '')">✕</button>
+      </div>
+    </div>
+    <div class="prod-name">${s.name}</div>
+    <span class="prod-class ${s.class==='第2類'?'cls-2':'cls-3'}">${s.class}医薬品</span>
+    <div class="prod-reason">${s.reason}</div>
+    ${s.caution ? `<div class="prod-caution">⚠️ ${s.caution}</div>` : ''}`;
+  return card;
+}
+
+function toggleStar(card, btn) {
+  const on = card.classList.toggle('starred');
+  btn.textContent = on ? '★' : '☆';
+  btn.classList.toggle('star-active', on);
+}
+function toggleMarker(btn, e) {
+  e.stopPropagation();
+  const pop = btn.nextElementSibling;
+  pop.classList.toggle('open');
+  document.onclick = () => pop.classList.remove('open');
+}
+function applyMkr(card, c) {
+  ['yellow','blue','pink'].forEach(col => card.classList.remove(`mark-${col}`));
+  if(c) card.classList.add(`mark-${c}`);
+}
+
+function addUserMsg(text) {
+  const scroll = document.getElementById('chatScroll');
+  const row = document.createElement('div');
+  row.className = 'msg-row user';
+  row.innerHTML = `<div class="av user">🙋</div><div class="bubble user">${text}</div>`;
+  scroll.appendChild(row);
+  scrollDown();
+}
+
+function showTyping() {
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.id = 'typingRow';
+  row.innerHTML = `<div class="av bot">💊</div><div class="bubble bot"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+  document.getElementById('chatScroll').appendChild(row);
+  scrollDown();
+}
+function hideTyping() { const el = document.getElementById('typingRow'); if (el) el.remove(); }
+function scrollDown() { const el = document.getElementById('chatScroll'); setTimeout(() => el.scrollTop = el.scrollHeight, 50); }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 110) + 'px'; }
+async function sendMsg() { const inp = document.getElementById('msgInput'); const text = inp.value.trim(); if (!text) return; inp.value = ''; inp.style.height = 'auto'; await processMsg(text); }
+async function quickSend(t) { await processMsg(t); }
+function resetChat() { if (!busy) initChat(); }
+window.onload = initChat;
+</script>
+</body>
+</html>
