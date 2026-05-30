@@ -13,6 +13,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY が設定されていません" });
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 600_000);
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -22,11 +25,15 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(req.body),
+      signal: controller.signal,
     });
 
     const data = await response.json();
     return res.status(response.status).json(data);
   } catch (e) {
-    return res.status(500).json({ error: "Claude API呼び出し失敗", detail: e.message });
+    const msg = e.name === "AbortError" ? "タイムアウト（10分）" : e.message;
+    return res.status(500).json({ error: "Claude API呼び出し失敗", detail: msg });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }

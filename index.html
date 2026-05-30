@@ -27,6 +27,9 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 .header-title { font-family: 'Shippori Mincho', serif; font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.03em; }
 .header-badge { font-size: 10px; background: var(--light); color: #fff; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
 .hdr-btn { height: 32px; padding: 0 12px; border-radius: 99px; border: 1.5px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); font-size: 12px; cursor: pointer; }
+.ai-toggle { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.2); border-radius: 99px; padding: 3px; }
+.ai-opt { height: 26px; padding: 0 10px; border-radius: 99px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; background: transparent; color: rgba(255,255,255,0.55); }
+.ai-opt.active { background: var(--light); color: #fff; }
 
 /* DISCLAIMER */
 .disclaimer { background: linear-gradient(to right, #fffbeb, #fff9e0); border-bottom: 1.5px solid rgba(201,166,44,0.35); padding: 7px 20px; font-size: 11px; color: #6b5010; line-height: 1.6; flex-shrink: 0; }
@@ -118,7 +121,11 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
     <div class="header-title">おくすり相談 Pro</div>
     <div class="header-badge">登録販売者サポート</div>
   </div>
-  <div class="header-right">
+  <div class="header-right" style="display:flex;align-items:center;gap:10px;">
+    <div class="ai-toggle">
+      <button class="ai-opt active" id="btnClaude" onclick="setAiMode('claude')">☁ Claude API</button>
+      <button class="ai-opt" id="btnOllama" onclick="setAiMode('ollama')">🏠 Ollama</button>
+    </div>
     <button class="hdr-btn" onclick="resetChat()">🔄 新しい相談</button>
   </div>
 </div>
@@ -166,7 +173,13 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 
 <script>
 /* ═══════════════════════════ CONFIG ═══════════════════════════ */
-const API_URL = `/api/claude`;
+let useOllama = false;
+function getApiUrl() { return useOllama ? '/api/ollama' : '/api/claude'; }
+function setAiMode(mode) {
+  useOllama = (mode === 'ollama');
+  document.getElementById('btnClaude').classList.toggle('active', !useOllama);
+  document.getElementById('btnOllama').classList.toggle('active', useOllama);
+}
 const SYS_INSTRUCTION = `あなたは日本のドラッグストアに設置された登録販売者向けの医薬品提案アシスタントです。操作者は登録販売者です。
 
 ルール：
@@ -242,22 +255,34 @@ async function callAPI(userMsg, dbContext = '') {
     : userMsg;
   messages.push({ role: 'user', content: augmented });
 
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: SYS_INSTRUCTION,
-      messages: messages
-    })
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 600_000);
+
+  let response;
+  try {
+    response = await fetch(getApiUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: SYS_INSTRUCTION,
+        messages: messages
+      }),
+      signal: controller.signal
+    });
+  } catch(fetchErr) {
+    clearTimeout(timeoutId);
+    if (fetchErr.name === 'AbortError') throw new Error('タイムアウト（10分）しました。再度お試しください。');
+    throw fetchErr;
+  }
+  clearTimeout(timeoutId);
 
   const data = await response.json();
 
   if (!response.ok) {
     console.error("APIエラー:", data);
-    throw new Error(`通信エラー (${response.status}): ${data.error?.message || "不明なエラー"}`);
+    throw new Error(`通信エラー (${response.status}): ${data.error?.message || data.detail || "不明なエラー"}`);
   }
 
   const reply = data.content?.[0]?.text;
