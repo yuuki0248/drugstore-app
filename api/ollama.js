@@ -2,7 +2,7 @@
 // Ollama が http://localhost:11434 で起動している必要があります
 // レスポンスは Claude API 互換形式で返します
 
-const OLLAMA_URL = "http://localhost:11434/api/chat";
+const OLLAMA_URL = "https://spoilage-trial-activator.ngrok-free.dev/api/chat";
 const MODEL = "llama3.2";
 
 export default async function handler(req, res) {
@@ -30,7 +30,10 @@ export default async function handler(req, res) {
   try {
     const response = await fetch(OLLAMA_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
       body: JSON.stringify({
         model: MODEL,
         messages: ollamaMessages,
