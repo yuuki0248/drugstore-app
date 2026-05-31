@@ -260,17 +260,32 @@ async function callAPI(userMsg, dbContext = '') {
 
   let response;
   try {
-    response = await fetch(getApiUrl(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        system: SYS_INSTRUCTION,
-        messages: messages
-      }),
-      signal: controller.signal
-    });
+    if (useOllama) {
+      // Ollama: ブラウザから ngrok 経由で直接接続
+      const ollamaMessages = [{ role: 'system', content: SYS_INSTRUCTION }, ...messages];
+      response = await fetch('https://spoilage-trial-activator.ngrok-free.dev/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ model: 'llama3.2', messages: ollamaMessages, stream: false }),
+        signal: controller.signal
+      });
+    } else {
+      // Claude: Vercel 経由
+      response = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          system: SYS_INSTRUCTION,
+          messages: messages
+        }),
+        signal: controller.signal
+      });
+    }
   } catch(fetchErr) {
     clearTimeout(timeoutId);
     if (fetchErr.name === 'AbortError') throw new Error('タイムアウト（10分）しました。再度お試しください。');
@@ -285,7 +300,7 @@ async function callAPI(userMsg, dbContext = '') {
     throw new Error(`通信エラー (${response.status}): ${data.error?.message || data.detail || "不明なエラー"}`);
   }
 
-  const reply = data.content?.[0]?.text;
+  const reply = useOllama ? data.message?.content : data.content?.[0]?.text;
   if (!reply) {
     console.error("テキスト取得失敗:", data);
     throw new Error("AIの回答が取得できませんでした。もう一度お試しください。");
