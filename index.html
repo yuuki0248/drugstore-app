@@ -300,7 +300,7 @@ async function callAPI(userMsg, dbContext = '') {
     throw new Error(`通信エラー (${response.status}): ${data.error?.message || data.detail || "不明なエラー"}`);
   }
 
-  const reply = useOllama ? data.message?.content : data.content?.[0]?.text;
+  const reply = useOllama ? data.message?.content : data.content?.find(b => b.type === 'text')?.text;
   if (!reply) {
     console.error("テキスト取得失敗:", data);
     throw new Error("AIの回答が取得できませんでした。もう一度お試しください。");
