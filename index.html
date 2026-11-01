@@ -97,6 +97,7 @@ body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: va
 .prod-reason { font-size: 13px; color: var(--text2); line-height: 1.7; }
 .prod-caution { margin-top: 6px; padding: 6px 10px; background: rgba(212,120,42,0.1); border-left: 3px solid var(--accent); font-size: 12px; color: var(--accent); }
 .consult-note { margin-top: 10px; padding: 9px 13px; background: #f0f8f4; border-left: 3px solid var(--light); font-size: 12.5px; color: var(--text2); }
+.db-warning { margin-bottom: 8px; padding: 6px 10px; background: var(--red-bg); border-left: 3px solid var(--red); font-size: 12px; color: var(--red); border-radius: 6px; font-weight: 500; }
 
 /* INPUT AREA */
 .input-zone { padding: 10px 16px 14px; background: var(--bg); border-top: 1.5px solid var(--border); flex-shrink: 0; }
@@ -222,19 +223,26 @@ async function searchDrugs(keywords) {
   try {
     const kw = encodeURIComponent(keywords.join(' '));
     const res = await fetch(`/api/search?keyword=${kw}`);
-    if (!res.ok) return '';
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error('DB検索失敗:', res.status, data.detail || data.error || '');
+      return { context: '', failed: true };
+    }
     const data = await res.json();
-    if (!data.results || data.results.length === 0) return '';
+    if (!data.results || data.results.length === 0) return { context: '', failed: false };
 
     const lines = data.results.slice(0, 15).map((r, i) => {
       const efficacy = (r.efficacy || '').replace(/\n/g, ' ').slice(0, 60);
       return `${i + 1}. 【${r.name}】(${r.risk_class}) 効能: ${efficacy}`;
     });
 
-    return `【DB検索結果 (キーワード: ${keywords.join('、')}) ${data.results.length}件より上位${lines.length}件】\n${lines.join('\n')}`;
+    return {
+      context: `【DB検索結果 (キーワード: ${keywords.join('、')}) ${data.results.length}件より上位${lines.length}件】\n${lines.join('\n')}`,
+      failed: false
+    };
   } catch (e) {
-    console.warn('DB検索失敗:', e);
-    return '';
+    console.error('DB検索失敗:', e);
+    return { context: '', failed: true };
   }
 }
 
@@ -328,13 +336,15 @@ async function processMsg(text) {
   try {
     // Step 1: 症状キーワードを抽出してDB検索
     const keywords = extractKeywords(text);
-    const dbContext = keywords.length > 0 ? await searchDrugs(keywords) : '';
+    const { context: dbContext, failed: dbFailed } = keywords.length > 0
+      ? await searchDrugs(keywords)
+      : { context: '', failed: false };
 
     // Step 2: DB候補をコンテキストとしてClaudeに渡す
     const raw = await callAPI(text, dbContext);
     hideTyping();
     const { html, suggestions } = parseReply(raw);
-    addBotMsg(html, suggestions, isRedFlag(raw));
+    addBotMsg(html, suggestions, isRedFlag(raw), dbFailed);
   } catch(err) {
     hideTyping();
     addBotMsg(`⚠️ エラー: ${err.message}`);
@@ -395,13 +405,16 @@ function isRedFlag(text) {
   return ['救急','119番','病院','緊急','受診'].some(k => text.includes(k));
 }
 
-function addBotMsg(html, suggestions = [], isFlag = false) {
+function addBotMsg(html, suggestions = [], isFlag = false, dbFailed = false) {
   const scroll = document.getElementById('chatScroll');
   const row = document.createElement('div');
   row.className = 'msg-row bot';
   const bub = document.createElement('div');
   bub.className = isFlag ? 'bubble bot redflag' : 'bubble bot';
-  bub.innerHTML = `<div>${html}</div>`;
+  const warningHtml = dbFailed
+    ? `<div class="db-warning">⚠️ 薬剤データベースを参照できませんでした。この回答は一般知識に基づくものです。</div>`
+    : '';
+  bub.innerHTML = `${warningHtml}<div>${html}</div>`;
   if (suggestions.length > 0) {
     const wrap = document.createElement('div');
     wrap.className = 'suggestions-wrap';

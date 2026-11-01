@@ -141,6 +141,7 @@ export default async function handler(req, res) {
       results,
     });
   } catch (e) {
+    console.error("検索失敗:", e);
     return res.status(500).json({ error: "検索失敗", detail: e.message });
   }
 }
